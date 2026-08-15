@@ -8,7 +8,7 @@ function PagePlaceholder({ title, description = '该页面内容待实现，后�
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-slate-400">占位页面</p>
+        <p className="text-sm text-muted-foreground">占位页面</p>
       </CardContent>
     </Card>
   )

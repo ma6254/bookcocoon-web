@@ -1,23 +1,19 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import {
-  AlertCircle,
-  BookMarked,
-  Eye,
-  EyeOff,
-  LibraryBig,
-  Loader2,
-  Lock,
-  NotebookPen,
-  User,
-} from 'lucide-react'
+import { AlertCircle, BookOpen, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import ThemeToggle from '@/components/theme-toggle'
 import { ROUTE_CONFIG } from '@/config'
 import {
   clearRememberedAccount,
@@ -26,18 +22,16 @@ import {
   login,
   rememberAccount,
 } from '@/services/auth'
-import './index.css'
 
 const PASSWORD_PATTERN = /^[a-zA-Z0-9._%+-]{8,}$/
 
 function Login() {
+  const navigate = useNavigate()
   const [account, setAccount] = useState(() => getRememberedAccount() ?? '')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const navigate = useNavigate()
 
   if (getStoredToken()) {
     return <Navigate to={ROUTE_CONFIG.homePath} replace />
@@ -66,6 +60,7 @@ function Login() {
     try {
       setLoading(true)
       setErrorMessage('')
+
       await login({ account: normalizedAccount, password })
 
       if (remember) {
@@ -83,132 +78,89 @@ function Login() {
   }
 
   return (
-    <main className="login-page">
-      <section className="login-panel" aria-label="系统登录">
-        <div className="login-panel__visual">
-          <div className="flex items-center gap-3.5">
-            <span className="login-brand__logo">B</span>
-            <span className="login-brand__name">BookCocoon</span>
+    <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <a href={ROUTE_CONFIG.homePath} className="flex items-center gap-2 self-center font-medium">
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <BookOpen className="size-4" />
           </div>
+          BookCocoon
+        </a>
 
-          <div className="login-hero">
-            <Badge className="mb-4 px-3 py-1.5 text-sm font-bold">书茧 · 阅读管理平台</Badge>
-            <h1>欢迎登录</h1>
-            <p className="login-hero__desc">
-              统一管理你的藏书、阅读进度与书评笔记，让每一次阅读都有迹可循。
-            </p>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">账号登录</CardTitle>
+            <CardDescription>请输入账号信息进入系统</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit}>
+              <div className="flex flex-col gap-6">
+                {errorMessage ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="size-4" />
+                    <AlertTitle>登录失败</AlertTitle>
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
+                ) : null}
 
-          <div className="flex flex-wrap items-center gap-3" aria-label="平台能力">
-            <Badge variant="outline" className="login-feature">
-              <BookMarked className="size-3.5" />
-              藏书管理
-            </Badge>
-            <Badge variant="outline" className="login-feature">
-              <LibraryBig className="size-3.5" />
-              阅读记录
-            </Badge>
-            <Badge variant="outline" className="login-feature">
-              <NotebookPen className="size-3.5" />
-              书评笔记
-            </Badge>
-          </div>
-        </div>
-
-        <Card className="login-card">
-          <CardContent className="login-card__content">
-            <div className="login-card__header">
-              <Badge className="px-3 py-1 text-sm font-bold">账户中心</Badge>
-              <h2>账号登录</h2>
-              <p>请输入账号信息进入系统</p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-              {errorMessage ? (
-                <Alert variant="destructive" className="rounded-xl">
-                  <AlertCircle className="size-4" />
-                  <AlertTitle>登录失败</AlertTitle>
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="account" className="text-sm font-semibold text-slate-700">
-                  账号
-                </Label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400" />
+                <div className="grid gap-2">
+                  <Label htmlFor="account">账号</Label>
                   <Input
                     id="account"
                     type="text"
+                    placeholder="用户名或邮箱"
                     value={account}
                     onChange={(event) => setAccount(event.target.value)}
-                    placeholder="请输入账号（用户名或邮箱）"
                     autoComplete="username"
                     disabled={loading}
-                    className="h-12 rounded-xl pr-4 pl-11"
                   />
                 </div>
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="password" className="text-sm font-semibold text-slate-700">
-                  密码
-                </Label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400" />
+                <div className="grid gap-2">
+                  <div className="flex items-center">
+                    <Label htmlFor="password">密码</Label>
+                    <a
+                      href="#"
+                      onClick={(event) => event.preventDefault()}
+                      className="ml-auto text-sm underline-offset-4 hover:underline"
+                    >
+                      忘记密码？
+                    </a>
+                  </div>
                   <Input
                     id="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type="password"
+                    placeholder="请输入密码"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="请输入密码"
                     autoComplete="current-password"
                     disabled={loading}
-                    className="h-12 rounded-xl pr-11 pl-11"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((value) => !value)}
-                    aria-label={showPassword ? '隐藏密码' : '显示密码'}
-                    className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-600"
-                  >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
                 </div>
-              </div>
 
-              <div className="-mt-1 flex items-center justify-between">
-                <label
-                  htmlFor="remember"
-                  className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 select-none"
-                >
+                <div className="flex items-center gap-2">
                   <Checkbox
                     id="remember"
                     checked={remember}
                     onCheckedChange={(checked) => setRemember(checked === true)}
                     disabled={loading}
                   />
-                  记住我
-                </label>
-                <a
-                  href="/login"
-                  onClick={(event) => event.preventDefault()}
-                  className="text-primary text-sm font-medium hover:underline"
-                >
-                  忘记密码？
-                </a>
-              </div>
+                  <Label htmlFor="remember">记住我</Label>
+                </div>
 
-              <Button type="submit" disabled={loading} className="login-submit w-full">
-                {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-                {loading ? '登录中…' : '登录'}
-              </Button>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin" /> : null}
+                  {loading ? '登录中…' : '登录'}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
-      </section>
-    </main>
+      </div>
+    </div>
   )
 }
 

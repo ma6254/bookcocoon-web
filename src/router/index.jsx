@@ -7,8 +7,8 @@ import { appRoutes } from './routes'
 function NotFound() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <p className="text-6xl font-extrabold text-slate-300">404</p>
-      <p className="mt-3 text-slate-500">页面不存在</p>
+      <p className="text-6xl font-extrabold text-muted-foreground/40">404</p>
+      <p className="mt-3 text-muted-foreground">页面不存在</p>
     </div>
   )
 }
