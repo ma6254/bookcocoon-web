@@ -240,11 +240,114 @@ export async function fetchBookRaw(bookId) {
   return response.blob()
 }
 
+// 检查书籍原始文件是否存在（HEAD 请求，不下载内容）。
+export async function checkBookRaw(bookId) {
+  const token = getStoredToken()
+  if (!token) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  let response
+  try {
+    response = await fetch(`/api/book/raw/${bookId}`, {
+      method: 'HEAD',
+      headers: { Authorization: token },
+    })
+  } catch {
+    return false
+  }
+
+  if (response.status === 401) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  if (response.status === 404) {
+    return false
+  }
+
+  return response.ok
+}
+
 // 生成原始文件下载名：书名-作者.txt（无作者时仅书名）。
 export function buildRawDownloadName(book) {
   const name = (book?.name || 'raw').trim()
   const author = (book?.author || '').trim()
   return author ? `${name}-${author}.txt` : `${name}.txt`
+}
+
+// 预处理书籍原始文件：POST /api/book/pre_process_raw/{book_id}（拆分章节）。
+// 成功时后端返回 200 空 body。
+export async function preprocessBookRaw(bookId) {
+  const token = getStoredToken()
+  if (!token) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  let response
+  try {
+    response = await fetch(`/api/book/pre_process_raw/${bookId}`, {
+      method: 'POST',
+      headers: { Authorization: token },
+    })
+  } catch {
+    throw new Error('网络错误，请稍后重试')
+  }
+
+  if (response.status === 401) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  if (!response.ok) {
+    let message = `预处理失败（${response.status}）`
+    try {
+      const text = (await response.text()).trim()
+      if (text) message = text
+    } catch {
+      // 读取错误信息失败时使用默认文案
+    }
+    throw new Error(message)
+  }
+
+  return true
+}
+
+// 获取书籍章节列表：GET /api/book/chapters/{book_id}，返回 [{index, book_id, title}]。
+export async function getBookChapters(bookId) {
+  return apiFetch(`/api/book/chapters/${bookId}`)
+}
+
+// 获取章节内容：GET /api/book/chapters/{book_id}/{index}，返回文本。
+export async function getChapterContent(bookId, index) {
+  const token = getStoredToken()
+  if (!token) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  let response
+  try {
+    response = await fetch(`/api/book/chapters/${bookId}/${index}`, {
+      headers: { Authorization: token },
+    })
+  } catch {
+    throw new Error('网络错误，请稍后重试')
+  }
+
+  if (response.status === 401) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  if (!response.ok) {
+    let message = `获取章节失败（${response.status}）`
+    try {
+      const text = (await response.text()).trim()
+      if (text) message = text
+    } catch {
+      // 读取错误信息失败时使用默认文案
+    }
+    throw new Error(message)
+  }
+
+  return response.text()
 }
 
 // 模拟从网站导入网文信息：接入真实后端/爬虫接口时替换为真实调用。

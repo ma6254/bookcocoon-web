@@ -1,6 +1,8 @@
 import PagePlaceholder from '@/components/PagePlaceholder'
 import BookshelfPage from '@/pages/books'
 import AddBookPage from '@/pages/books/create'
+import ReaderPage from '@/pages/books/read'
+import ReaderPageMobile from '@/pages/books/read/mobile'
 import UploadFilesPage from '@/pages/upload-files'
 import SystemInfoPage from '@/pages/system-info'
 
@@ -9,6 +11,8 @@ export const appRoutes = [
   { path: '/dashboard', title: '概览', element: <PagePlaceholder title="概览" description="藏书与阅读数据总览。" /> },
   { path: '/books', title: '书架', element: <BookshelfPage /> },
   { path: '/books/create', title: '添加书籍', element: <AddBookPage /> },
+  { path: '/books/read/:bookId', title: '阅读', element: <ReaderPage /> },
+  { path: '/books/read/m/:bookId', title: '阅读', element: <ReaderPageMobile /> },
   { path: '/reading/current', title: '在读', element: <PagePlaceholder title="在读" /> },
   { path: '/reading/finished', title: '已读', element: <PagePlaceholder title="已读" /> },
   { path: '/reading/wishlist', title: '想读', element: <PagePlaceholder title="想读" /> },
@@ -21,5 +25,6 @@ export const appRoutes = [
 ]
 
 export function findRouteTitle(pathname) {
+  if (pathname.startsWith('/books/read/')) return '阅读'
   return appRoutes.find((route) => route.path === pathname)?.title ?? ''
 }

@@ -20,7 +20,7 @@ function ScrollToTop() {
     <Button
       variant="outline"
       size="icon"
-      className="fixed right-4 bottom-4 z-40 rounded-full shadow-md md:right-6 md:bottom-6"
+      className="fixed right-4 bottom-20 z-40 rounded-full shadow-md md:right-6 md:bottom-6"
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       aria-label="回到顶部"
       title="回到顶部"

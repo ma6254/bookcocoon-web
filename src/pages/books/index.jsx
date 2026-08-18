@@ -1,9 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, BookPlus, Download, Loader2, Pencil } from 'lucide-react'
+import { BookOpen, BookPlus, BookText, Download, Loader2, MoreHorizontal, Pencil, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,7 +27,10 @@ import {
   buildRawDownloadName,
   fetchBookCover,
   fetchBookRaw,
+  getBookChapters,
   getBookList,
+  getChapterContent,
+  preprocessBookRaw,
   toFrontendType,
 } from '@/services/book'
 
@@ -26,6 +43,37 @@ const TYPE_LABELS = {
 
 // 「无作者」筛选项的哨兵值（Radix Select 的 value 不能为空字符串）。
 const NO_AUTHOR = '__no_author__'
+
+// 统计 UTF-8 字符数（按 Unicode 码点计数，排除空白字符）。
+function countChars(text) {
+  let count = 0
+  for (const ch of text) {
+    if (!/\s/.test(ch)) count += 1
+  }
+  return count
+}
+
+// 以有限并发执行异步任务，返回与输入顺序一致的结果数组。
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length)
+  let cursor = 0
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await fn(items[index], index)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
+
+// 是否处于移动端视口（与 Tailwind 的 md 断点一致，768px）。
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+}
 
 // 拉取封面 Blob：优先文件封面，缺失时回退到老数据的 base64 封面。
 async function fetchCover(book) {
@@ -56,6 +104,45 @@ function CoverLoading() {
   return <div className="size-full bg-muted" />
 }
 
+function BookActionsMenu({ book, onRead, onPreprocess, onDownloadRaw, onEdit, downloading, triggerClassName }) {
+  const isWebNovel = toFrontendType(book.type) === 'webnovel'
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" title="操作" className={triggerClassName}>
+          <MoreHorizontal />
+          <span className="sr-only">操作</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {isWebNovel ? (
+          <DropdownMenuItem onClick={() => onRead(book)}>
+            <BookText className="size-4" />
+            阅读
+          </DropdownMenuItem>
+        ) : null}
+        {isWebNovel ? (
+          <DropdownMenuItem onClick={() => onPreprocess(book)}>
+            <RefreshCw className="size-4" />
+            预处理章节
+          </DropdownMenuItem>
+        ) : null}
+        {isWebNovel ? (
+          <DropdownMenuItem onClick={() => onDownloadRaw(book)} disabled={downloading}>
+            {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            下载原文
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onClick={() => onEdit(book)}>
+          <Pencil className="size-4" />
+          编辑
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function BookshelfPage() {
   const navigate = useNavigate()
   const [books, setBooks] = useState([])
@@ -72,6 +159,11 @@ function BookshelfPage() {
   const [downloadingId, setDownloadingId] = useState(null)
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef(null)
+  const [preprocessOpen, setPreprocessOpen] = useState(false)
+  const [preprocessTarget, setPreprocessTarget] = useState(null)
+  const [preprocessPhase, setPreprocessPhase] = useState('confirm') // confirm | processing | result | error
+  const [preprocessChapters, setPreprocessChapters] = useState([])
+  const [preprocessError, setPreprocessError] = useState('')
 
   useEffect(() => {
     return () => {
@@ -108,6 +200,65 @@ function BookshelfPage() {
   function handleEdit(book) {
     setEditingBook(book)
     setEditOpen(true)
+  }
+
+  function handleRead(book) {
+    const path = isMobileViewport() ? `/books/read/m/${book.id}` : `/books/read/${book.id}`
+    navigate(path, { state: { name: book.name, author: book.author } })
+  }
+
+  function handlePreprocess(book) {
+    setPreprocessTarget(book)
+    setPreprocessPhase('confirm')
+    setPreprocessChapters([])
+    setPreprocessError('')
+    setPreprocessOpen(true)
+  }
+
+  async function handleConfirmPreprocess() {
+    if (!preprocessTarget) return
+
+    setPreprocessPhase('processing')
+    setPreprocessError('')
+
+    try {
+      await preprocessBookRaw(preprocessTarget.id)
+
+      const chapters = await getBookChapters(preprocessTarget.id)
+      const list = (Array.isArray(chapters) ? chapters : []).map((chapter) => ({
+        ...chapter,
+        charCount: null,
+      }))
+
+      setPreprocessChapters(list)
+      setPreprocessPhase('result')
+
+      // 流式统计：每完成一章就更新该章字数，不等全部完成。
+      mapWithConcurrency(list, 6, async (chapter) => {
+        let charCount = 0
+        try {
+          const text = await getChapterContent(preprocessTarget.id, chapter.index)
+          charCount = countChars(text ?? '')
+        } catch {
+          charCount = 0
+        }
+
+        setPreprocessChapters((prev) =>
+          prev.map((item) => (item.index === chapter.index ? { ...item, charCount } : item)),
+        )
+      })
+    } catch (err) {
+      setPreprocessError(err?.message || '预处理失败')
+      setPreprocessPhase('error')
+    }
+  }
+
+  function handleClosePreprocess() {
+    setPreprocessOpen(false)
+    setPreprocessTarget(null)
+    setPreprocessPhase('confirm')
+    setPreprocessChapters([])
+    setPreprocessError('')
   }
 
   function handleSaved(updated) {
@@ -260,55 +411,47 @@ function BookshelfPage() {
 
             return (
               <Card key={book.id}>
-                <CardContent className="flex items-center justify-between gap-3 py-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="size-14 shrink-0 overflow-hidden rounded-md border bg-muted">
-                      <PicViewer
-                        fetcher={() => fetchCover(book)}
-                        alt={book.name || '封面'}
-                        filePath={book.name || ''}
-                        className="size-full"
-                        fit="cover"
-                        fallback={<CoverFallback iconClassName="size-5" />}
-                        loadingFallback={<CoverLoading />}
-                        refreshKey={coverVersion}
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="truncate text-base font-semibold">{book.name || '未命名'}</h3>
-                        <Badge variant="secondary">{TYPE_LABELS[frontendType] ?? frontendType}</Badge>
-                      </div>
-                      {book.author ? <p className="text-sm text-muted-foreground">{book.author}</p> : null}
-                    </div>
+                <CardContent className="flex items-center gap-3 py-4">
+                  <div className="size-14 shrink-0 overflow-hidden rounded-md border bg-muted">
+                    <PicViewer
+                      fetcher={() => fetchCover(book)}
+                      alt={book.name || '封面'}
+                      filePath={book.name || ''}
+                      className="size-full"
+                      fit="cover"
+                      fallback={<CoverFallback iconClassName="size-5" />}
+                      loadingFallback={<CoverLoading />}
+                      refreshKey={coverVersion}
+                    />
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {frontendType === 'webnovel' ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadRaw(book)}
-                        disabled={downloadingId === book.id}
-                        title="下载原文"
-                      >
-                        {downloadingId === book.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Download className="size-4" />
-                        )}
-                        原文
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(book)}
-                      title="编辑"
-                    >
-                      <Pencil />
-                      <span className="sr-only">编辑</span>
-                    </Button>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      {frontendType === 'webnovel' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRead(book)}
+                          title="阅读"
+                          className="min-w-0 truncate text-left text-base font-semibold hover:underline"
+                        >
+                          {book.name || '未命名'}
+                        </button>
+                      ) : (
+                        <h3 className="min-w-0 truncate text-base font-semibold">{book.name || '未命名'}</h3>
+                      )}
+                      <Badge variant="secondary" className="shrink-0">
+                        {TYPE_LABELS[frontendType] ?? frontendType}
+                      </Badge>
+                    </div>
+                    {book.author ? <p className="truncate text-sm text-muted-foreground">{book.author}</p> : null}
                   </div>
+                  <BookActionsMenu
+                    book={book}
+                    onRead={handleRead}
+                    onPreprocess={handlePreprocess}
+                    onDownloadRaw={handleDownloadRaw}
+                    onEdit={handleEdit}
+                    downloading={downloadingId === book.id}
+                  />
                 </CardContent>
               </Card>
             )
@@ -329,36 +472,29 @@ function BookshelfPage() {
                   loadingFallback={<CoverLoading />}
                   refreshKey={coverVersion}
                 />
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="absolute top-2 right-2 size-8 opacity-90"
-                  onClick={() => handleEdit(book)}
-                  title="编辑"
-                >
-                  <Pencil />
-                  <span className="sr-only">编辑</span>
-                </Button>
-                {toFrontendType(book.type) === 'webnovel' ? (
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="absolute bottom-2 right-2 size-8 opacity-90"
-                    onClick={() => handleDownloadRaw(book)}
-                    disabled={downloadingId === book.id}
-                    title="下载原文"
-                  >
-                    {downloadingId === book.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Download className="size-4" />
-                    )}
-                    <span className="sr-only">下载原文</span>
-                  </Button>
-                ) : null}
+                <BookActionsMenu
+                  book={book}
+                  onRead={handleRead}
+                  onPreprocess={handlePreprocess}
+                  onDownloadRaw={handleDownloadRaw}
+                  onEdit={handleEdit}
+                  downloading={downloadingId === book.id}
+                  triggerClassName="absolute top-2 right-2 size-8 bg-background/70 opacity-90"
+                />
               </div>
               <div className="min-w-0 px-0.5">
-                <p className="truncate text-sm font-medium">{book.name || '未命名'}</p>
+                {toFrontendType(book.type) === 'webnovel' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleRead(book)}
+                    title="阅读"
+                    className="block w-full truncate text-left text-sm font-medium hover:underline"
+                  >
+                    {book.name || '未命名'}
+                  </button>
+                ) : (
+                  <p className="truncate text-sm font-medium">{book.name || '未命名'}</p>
+                )}
                 {book.author ? (
                   <p className="truncate text-xs text-muted-foreground">{book.author}</p>
                 ) : null}
@@ -374,6 +510,84 @@ function BookshelfPage() {
         onOpenChange={setEditOpen}
         onSaved={handleSaved}
       />
+
+      <Dialog
+        open={preprocessOpen}
+        onOpenChange={(open) => {
+          if (open) return
+          if (preprocessPhase === 'processing') return // 处理中不允许关闭
+          handleClosePreprocess()
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          {preprocessPhase === 'confirm' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>预处理章节</DialogTitle>
+                <DialogDescription>
+                  将对「{preprocessTarget?.name || '未命名'}」的原文重新分章，已存在的章节会被覆盖。是否继续？
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={handleClosePreprocess}>
+                  取消
+                </Button>
+                <Button onClick={handleConfirmPreprocess}>确定</Button>
+              </DialogFooter>
+            </>
+          ) : preprocessPhase === 'processing' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>正在预处理…</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-3 py-6">
+                <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">正在解析原文并拆分章节…</p>
+              </div>
+            </>
+          ) : preprocessPhase === 'result' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>预处理完成</DialogTitle>
+                <DialogDescription>
+                  「{preprocessTarget?.name || '未命名'}」共解析出 {preprocessChapters.length} 章。
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-64 overflow-y-auto rounded-md border">
+                {preprocessChapters.length > 0 ? (
+                  preprocessChapters.map((chapter, index) => (
+                    <div
+                      key={chapter.index}
+                      className="flex items-baseline gap-2 border-b px-3 py-1.5 text-sm last:border-b-0"
+                    >
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+                      <span className="min-w-0 flex-1 truncate">{chapter.title || `第 ${index + 1} 章`}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {chapter.charCount == null ? '统计中…' : `${chapter.charCount} 字`}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-3 py-8 text-center text-sm text-muted-foreground">未解析出章节</p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button onClick={handleClosePreprocess}>知道了</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>预处理失败</DialogTitle>
+                <DialogDescription>{preprocessError}</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button onClick={handleClosePreprocess}>关闭</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
