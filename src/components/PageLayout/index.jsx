@@ -4,6 +4,7 @@ import { LogOut, Maximize2, Minimize2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import ThemeToggle from '@/components/theme-toggle'
+import ScrollToTop from '@/components/ScrollToTop'
 import { cn } from '@/lib/utils'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from '@/components/Sidebar'
@@ -42,7 +43,7 @@ function PageLayout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b px-4">
+        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-3 border-b bg-background px-4">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
@@ -68,9 +69,11 @@ function PageLayout() {
           </div>
         </header>
 
-        <div className={cn('flex flex-1 flex-col gap-4 p-4 md:p-6', !wide && 'mx-auto w-full max-w-5xl')}>
+        <div className={cn('flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6', !wide && 'mx-auto w-full max-w-5xl')}>
           <Outlet />
         </div>
+
+        <ScrollToTop />
       </SidebarInset>
     </SidebarProvider>
   )

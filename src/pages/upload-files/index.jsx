@@ -143,7 +143,7 @@ function UploadFilesPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {files.map((file) => {
             const fileId = String(file.file_id)
 
@@ -159,26 +159,25 @@ function UploadFilesPage() {
                     <p className="truncate text-xs text-muted-foreground/80" title={file.hash}>
                       SHA256：{formatHash(file.hash)}
                     </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {formatTime(file.uploaded_at || file.created_at)}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDownload(file)}
-                      disabled={downloadingId === fileId}
-                      aria-label="下载"
-                      title="下载"
-                    >
-                      {downloadingId === fileId ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                    </Button>
+                    </p>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => handleDownload(file)}
+                    disabled={downloadingId === fileId}
+                    aria-label="下载"
+                    title="下载"
+                  >
+                    {downloadingId === fileId ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Download className="size-4" />
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             )

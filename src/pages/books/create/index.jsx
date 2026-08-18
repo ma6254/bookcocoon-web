@@ -385,7 +385,7 @@ function WebNovelForm({ cover, title, onTitleChange, onAutoFilled, onSaved }) {
         </Dialog>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <FieldLabel htmlFor="web-author">作者</FieldLabel>
           <Input
@@ -570,7 +570,7 @@ function DoujinshiForm({ cover, title, onTitleChange, onSaved }) {
 
       <FileUpload file={file} onChange={setFile} />
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <FieldLabel htmlFor="doujin-author" required>作者/社团</FieldLabel>
           <Input
@@ -746,7 +746,7 @@ function ImagePackForm({ cover, title, onTitleChange, onSaved }) {
 
       <FileUpload file={file} onChange={setFile} accept=".zip,.rar" hint="仅支持 zip / rar 文件" />
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <FieldLabel htmlFor="imagepack-author" required>画师/作者</FieldLabel>
           <Input
@@ -1001,7 +1001,7 @@ function PublishedBookForm({ cover, title, onTitleChange, onSaved }) {
         </Button>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="flex flex-col gap-2">
           <FieldLabel htmlFor="book-author" required>作者</FieldLabel>
           <Input

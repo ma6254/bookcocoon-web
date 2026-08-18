@@ -106,7 +106,7 @@ function BookshelfPage() {
           </Button>
         </div>
       ) : mode === 'list' ? (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {filtered.map((book) => {
             const subtitle = getSubtitle(book)
 
