@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { createBook, importBookFromDouban, importWebNovelFromUrl } from '@/services/book'
+import { createBook, importBookFromDouban, importWebNovelFromUrl, uploadBookCover, uploadBookRaw } from '@/services/book'
 import { uploadFile } from '@/services/upload'
 import UploadFileSelectDialog from '@/components/UploadFileSelectDialog'
 
@@ -76,14 +76,24 @@ function FormActions({ loading }) {
 
 function CoverUpload({ cover, onChange }) {
   const inputRef = useRef(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+
+  useEffect(() => {
+    if (!cover) {
+      setPreviewUrl(null)
+      return undefined
+    }
+
+    const url = URL.createObjectURL(cover)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [cover])
 
   function handleFile(event) {
     const file = event.target.files?.[0]
-    if (!file) return
+    event.target.value = ''
 
-    const reader = new FileReader()
-    reader.onload = () => onChange(reader.result)
-    reader.readAsDataURL(file)
+    if (file) onChange(file)
   }
 
   return (
@@ -94,7 +104,7 @@ function CoverUpload({ cover, onChange }) {
         className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted"
       >
         {cover ? (
-          <img src={cover} alt="封面预览" className="size-full object-cover" />
+          <img src={previewUrl} alt="封面预览" className="size-full object-cover" />
         ) : (
           <ImagePlus className="size-6 text-muted-foreground" />
         )}
@@ -122,7 +132,7 @@ function CoverUpload({ cover, onChange }) {
   )
 }
 
-function FileUpload({ file, onChange, accept, hint = '支持电子书、压缩包等文件' }) {
+function FileUpload({ file, onChange, onFile, accept, hint = '支持电子书、压缩包等文件' }) {
   const inputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -146,6 +156,7 @@ function FileUpload({ file, onChange, accept, hint = '支持电子书、压缩�
         file_id: info.file_id,
         hash: info.hash,
       })
+      onFile?.(selectedFile)
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : '上传失败，请稍后重试')
     } finally {
@@ -155,6 +166,7 @@ function FileUpload({ file, onChange, accept, hint = '支持电子书、压缩�
 
   function handleRemove() {
     onChange(null)
+    onFile?.(null)
     setError('')
   }
 
@@ -165,6 +177,8 @@ function FileUpload({ file, onChange, accept, hint = '支持电子书、压缩�
       file_id: uploadedFile.file_id,
       hash: uploadedFile.hash,
     })
+    // 从「已上传文件」选择的历史文件没有原始 File，不能作为书籍原始文件。
+    onFile?.(null)
     setError('')
     setDialogOpen(false)
   }
@@ -251,6 +265,7 @@ const EMPTY_WEB = {
 
 function WebNovelForm({ cover, title, onTitleChange, onAutoFilled, onSaved }) {
   const [file, setFile] = useState(null)
+  const [rawFile, setRawFile] = useState(null)
   const [form, setForm] = useState(EMPTY_WEB)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -317,9 +332,8 @@ function WebNovelForm({ cover, title, onTitleChange, onAutoFilled, onSaved }) {
       setLoading(true)
       setErrorMessage('')
 
-      await createBook({
+      const created = await createBook({
         type: 'webnovel',
-        cover,
         file,
         title: trimmedTitle,
         author,
@@ -331,8 +345,17 @@ function WebNovelForm({ cover, title, onTitleChange, onAutoFilled, onSaved }) {
         description: form.description.trim(),
       })
 
+      if (cover) {
+        await uploadBookCover(created.id, cover)
+      }
+
+      if (rawFile) {
+        await uploadBookRaw(created.id, rawFile)
+      }
+
       setForm({ ...EMPTY_WEB })
       setFile(null)
+      setRawFile(null)
       onSaved?.()
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '保存失败，请稍后重试')
@@ -345,7 +368,7 @@ function WebNovelForm({ cover, title, onTitleChange, onAutoFilled, onSaved }) {
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <FormFeedback errorMessage={errorMessage} />
 
-      <FileUpload file={file} onChange={setFile} accept=".txt" hint="仅支持 txt 文件" />
+      <FileUpload file={file} onChange={setFile} onFile={setRawFile} accept=".txt" hint="仅支持 txt 文件" />
 
       <div>
         <Dialog open={importOpen} onOpenChange={setImportOpen}>
@@ -540,9 +563,8 @@ function DoujinshiForm({ cover, title, onTitleChange, onSaved }) {
       setLoading(true)
       setErrorMessage('')
 
-      await createBook({
+      const created = await createBook({
         type: 'doujinshi',
-        cover,
         file,
         title: trimmedTitle,
         author,
@@ -553,6 +575,10 @@ function DoujinshiForm({ cover, title, onTitleChange, onSaved }) {
         reading_status: form.readingStatus,
         description: form.description.trim(),
       })
+
+      if (cover) {
+        await uploadBookCover(created.id, cover)
+      }
 
       setForm({ ...EMPTY_DOUJIN })
       setFile(null)
@@ -716,9 +742,8 @@ function ImagePackForm({ cover, title, onTitleChange, onSaved }) {
       setLoading(true)
       setErrorMessage('')
 
-      await createBook({
+      const created = await createBook({
         type: 'imagepack',
-        cover,
         file,
         title: trimmedTitle,
         author,
@@ -729,6 +754,10 @@ function ImagePackForm({ cover, title, onTitleChange, onSaved }) {
         reading_status: form.readingStatus,
         description: form.description.trim(),
       })
+
+      if (cover) {
+        await uploadBookCover(created.id, cover)
+      }
 
       setForm({ ...EMPTY_IMAGEPACK })
       setFile(null)
@@ -927,9 +956,8 @@ function PublishedBookForm({ cover, title, onTitleChange, onSaved }) {
       setLoading(true)
       setErrorMessage('')
 
-      await createBook({
+      const created = await createBook({
         type: 'book',
-        cover,
         file,
         title: trimmedTitle,
         author,
@@ -940,6 +968,10 @@ function PublishedBookForm({ cover, title, onTitleChange, onSaved }) {
         reading_status: form.readingStatus,
         description: form.description.trim(),
       })
+
+      if (cover) {
+        await uploadBookCover(created.id, cover)
+      }
 
       setForm({ ...EMPTY_BOOK })
       setFile(null)
