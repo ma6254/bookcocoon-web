@@ -18,9 +18,7 @@ export const appRoutes = [
   { path: '/reading/current', title: '在读', element: <PagePlaceholder title="在读" /> },
   { path: '/reading/finished', title: '已读', element: <PagePlaceholder title="已读" /> },
   { path: '/reading/wishlist', title: '想读', element: <PagePlaceholder title="想读" /> },
-  { path: '/reviews', title: '书评', element: <PagePlaceholder title="书评" /> },
-  { path: '/notes', title: '读书笔记', element: <PagePlaceholder title="读书笔记" /> },
-  { path: '/stats', title: '数据统计', element: <PagePlaceholder title="数据统计" /> },
+
   { path: '/settings/info', title: '系统信息', element: <SystemInfoPage /> },
   { path: '/settings/upload-files', title: '上传文件管理', element: <UploadFilesPage /> },
   { path: '/settings/users', title: '用户管理', element: <PagePlaceholder title="用户管理" /> },

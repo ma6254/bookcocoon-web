@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@radix-ui/react-collapsible'
 import {
-  BarChart3,
+
   BookMarked,
   BookOpen,
   BookPlus,
@@ -9,11 +9,8 @@ import {
   History,
   Info,
   LayoutDashboard,
-  Library,
-  MessageSquare,
-  NotebookPen,
+
   Settings,
-  StickyNote,
   Upload,
   Users,
 } from 'lucide-react'
@@ -37,26 +34,10 @@ import { ROUTE_CONFIG } from '@/config'
 
 export const menuItems = [
   { key: 'dashboard', label: '概览', icon: <LayoutDashboard className="size-4" />, path: '/dashboard' },
-  {
-    key: 'library',
-    label: '藏书管理',
-    icon: <Library className="size-4" />,
-    children: [
-      { key: 'books', label: '书架', icon: <BookMarked className="size-4" />, path: '/books' },
-      { key: 'book-create', label: '添加书籍', icon: <BookPlus className="size-4" />, path: '/books/create' },
-      { key: 'reading-records', label: '阅读记录', icon: <History className="size-4" />, path: '/reading/records' },
-    ],
-  },
-  {
-    key: 'notes',
-    label: '书评笔记',
-    icon: <NotebookPen className="size-4" />,
-    children: [
-      { key: 'reviews', label: '书评', icon: <MessageSquare className="size-4" />, path: '/reviews' },
-      { key: 'notes', label: '读书笔记', icon: <StickyNote className="size-4" />, path: '/notes' },
-    ],
-  },
-  { key: 'stats', label: '数据统计', icon: <BarChart3 className="size-4" />, path: '/stats' },
+  { key: 'books', label: '书架', icon: <BookMarked className="size-4" />, path: '/books' },
+  { key: 'book-create', label: '添加书籍', icon: <BookPlus className="size-4" />, path: '/books/create' },
+  { key: 'reading-records', label: '阅读记录', icon: <History className="size-4" />, path: '/reading/records' },
+
   {
     key: 'settings',
     label: '系统配置',
