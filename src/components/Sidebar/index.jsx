@@ -2,13 +2,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@radix-ui/react-collapsible'
 import {
   BarChart3,
-  BookCheck,
   BookMarked,
   BookOpen,
   BookPlus,
-  Bookmark,
   ChevronRight,
-  Clock,
+  History,
   Info,
   LayoutDashboard,
   Library,
@@ -46,16 +44,7 @@ export const menuItems = [
     children: [
       { key: 'books', label: '书架', icon: <BookMarked className="size-4" />, path: '/books' },
       { key: 'book-create', label: '添加书籍', icon: <BookPlus className="size-4" />, path: '/books/create' },
-    ],
-  },
-  {
-    key: 'reading',
-    label: '阅读记录',
-    icon: <BookOpen className="size-4" />,
-    children: [
-      { key: 'reading-current', label: '在读', icon: <Clock className="size-4" />, path: '/reading/current' },
-      { key: 'reading-finished', label: '已读', icon: <BookCheck className="size-4" />, path: '/reading/finished' },
-      { key: 'reading-wishlist', label: '想读', icon: <Bookmark className="size-4" />, path: '/reading/wishlist' },
+      { key: 'reading-records', label: '阅读记录', icon: <History className="size-4" />, path: '/reading/records' },
     ],
   },
   {

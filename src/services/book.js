@@ -350,6 +350,37 @@ export async function getChapterContent(bookId, index) {
   return response.text()
 }
 
+// 获取章节信息：GET /api/book/chapter-info/{book_id}/{index}，返回 {index, book_id, title}；不存在（404）时返回 null。
+export async function getChapterInfo(bookId, index) {
+  const token = getStoredToken()
+  if (!token) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  let response
+  try {
+    response = await fetch(`/api/book/chapter-info/${bookId}/${index}`, {
+      headers: { Authorization: token },
+    })
+  } catch {
+    throw new Error('网络错误，请稍后重试')
+  }
+
+  if (response.status === 404) {
+    return null
+  }
+
+  if (response.status === 401) {
+    throw new Error('登录状态已过期，请重新登录')
+  }
+
+  if (!response.ok) {
+    throw new Error(`获取章节信息失败（${response.status}）`)
+  }
+
+  return response.json()
+}
+
 // 模拟从网站导入网文信息：接入真实后端/爬虫接口时替换为真实调用。
 export async function importWebNovelFromUrl(url) {
   await new Promise((resolve) => setTimeout(resolve, 800))

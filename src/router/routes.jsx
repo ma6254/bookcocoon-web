@@ -3,6 +3,7 @@ import BookshelfPage from '@/pages/books'
 import AddBookPage from '@/pages/books/create'
 import ReaderPage from '@/pages/books/read'
 import ReaderPageMobile from '@/pages/books/read/mobile'
+import ReadingRecordsPage from '@/pages/reading-records'
 import UploadFilesPage from '@/pages/upload-files'
 import SystemInfoPage from '@/pages/system-info'
 
@@ -13,6 +14,7 @@ export const appRoutes = [
   { path: '/books/create', title: '添加书籍', element: <AddBookPage /> },
   { path: '/books/read/:bookId', title: '阅读', element: <ReaderPage /> },
   { path: '/books/read/m/:bookId', title: '阅读', element: <ReaderPageMobile /> },
+  { path: '/reading/records', title: '阅读记录', element: <ReadingRecordsPage /> },
   { path: '/reading/current', title: '在读', element: <PagePlaceholder title="在读" /> },
   { path: '/reading/finished', title: '已读', element: <PagePlaceholder title="已读" /> },
   { path: '/reading/wishlist', title: '想读', element: <PagePlaceholder title="想读" /> },

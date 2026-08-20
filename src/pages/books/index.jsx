@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, BookPlus, BookText, Download, Loader2, MoreHorizontal, Pencil, RefreshCw } from 'lucide-react'
+import { BookOpen, BookPlus, BookText, CircleAlert, Download, Loader2, MoreHorizontal, Pencil, RefreshCw, TriangleAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,18 +21,23 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import PicViewer from '@/components/PicViewer'
 import BookEditDialog from '@/components/BookEditDialog'
 import {
   buildRawDownloadName,
+  checkBookRaw,
   fetchBookCover,
   fetchBookRaw,
   getBookChapters,
   getBookList,
   getChapterContent,
+  getChapterInfo,
   preprocessBookRaw,
   toFrontendType,
 } from '@/services/book'
+import { getReadingRecordList } from '@/services/readingRecord'
+import { formatDateTime, formatRelativeTime } from '@/lib/formatTime'
 
 const TYPE_LABELS = {
   webnovel: '网文',
@@ -75,10 +80,14 @@ function isMobileViewport() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
 }
 
-// 拉取封面 Blob：优先文件封面，缺失时回退到老数据的 base64 封面。
+// 拉取封面 Blob：优先文件封面，缺失或拉取失败时回退到老数据的 base64 封面。
 async function fetchCover(book) {
-  const blob = await fetchBookCover(book.id)
-  if (blob) return blob
+  try {
+    const blob = await fetchBookCover(book.id)
+    if (blob) return blob
+  } catch {
+    // 文件封面拉取失败（网络错误等）时继续尝试老数据封面
+  }
 
   if (book.cover) {
     try {
@@ -143,9 +152,41 @@ function BookActionsMenu({ book, onRead, onPreprocess, onDownloadRaw, onEdit, do
   )
 }
 
+function ChapterHint({ status }) {
+  if (!status || status.chapterCount !== 0) return null
+
+  let icon = null
+  let label = ''
+
+  if (status.rawExists === true) {
+    icon = <TriangleAlert className="size-4 text-amber-500" />
+    label = '已上传原文，未预处理'
+  } else if (status.rawExists === false) {
+    icon = <CircleAlert className="size-4 text-muted-foreground" />
+    label = '未上传原文'
+  }
+
+  if (!icon) return null
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex shrink-0 items-center justify-center">{icon}</span>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 function BookshelfPage() {
   const navigate = useNavigate()
   const [books, setBooks] = useState([])
+  const [readingRecordMap, setReadingRecordMap] = useState({})
+  const [chapterTitleMap, setChapterTitleMap] = useState({})
+  const [bookStatusMap, setBookStatusMap] = useState({})
+  const [statusVersion, setStatusVersion] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [type, setType] = useState('all')
@@ -155,7 +196,7 @@ function BookshelfPage() {
   })
   const [editingBook, setEditingBook] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
-  const [coverVersion, setCoverVersion] = useState(0)
+  const [coverRefreshMap, setCoverRefreshMap] = useState({})
   const [downloadingId, setDownloadingId] = useState(null)
   const [notice, setNotice] = useState('')
   const noticeTimer = useRef(null)
@@ -187,10 +228,98 @@ function BookshelfPage() {
         if (!cancelled) setLoading(false)
       })
 
+    // 拉取阅读记录，用于在书架显示阅读进度。
+    getReadingRecordList()
+      .then((list) => {
+        if (cancelled) return
+        const map = {}
+        for (const record of Array.isArray(list) ? list : []) {
+          map[String(record.book_id)] = record
+        }
+        setReadingRecordMap(map)
+      })
+      .catch(() => {
+        // 阅读记录拉取失败不影响书架展示
+      })
+
     return () => {
       cancelled = true
     }
   }, [])
+
+  // 拉取网文的章节数与原文状态，用于 0 章节提示。
+  useEffect(() => {
+    const webNovels = books.filter((book) => toFrontendType(book.type) === 'webnovel')
+    if (webNovels.length === 0) return undefined
+
+    let cancelled = false
+
+    async function load() {
+      await mapWithConcurrency(webNovels, 4, async (book) => {
+        try {
+          const chapters = await getBookChapters(book.id)
+          if (cancelled) return
+          const count = Array.isArray(chapters) ? chapters.length : 0
+
+          setBookStatusMap((prev) => ({
+            ...prev,
+            [String(book.id)]: { ...prev[String(book.id)], chapterCount: count },
+          }))
+
+          if (count === 0) {
+            const exists = await checkBookRaw(book.id)
+            if (cancelled) return
+            setBookStatusMap((prev) => ({
+              ...prev,
+              [String(book.id)]: { ...prev[String(book.id)], rawExists: exists },
+            }))
+          } else {
+            setBookStatusMap((prev) => ({
+              ...prev,
+              [String(book.id)]: { ...prev[String(book.id)], rawExists: null },
+            }))
+          }
+        } catch {
+          // 忽略单本书状态拉取失败
+        }
+      })
+    }
+
+    load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [books, statusVersion])
+
+  // 拉取每本书上次读到的章节标题。
+  useEffect(() => {
+    const records = Object.values(readingRecordMap)
+    if (records.length === 0) return undefined
+
+    let cancelled = false
+
+    async function load() {
+      const titles = {}
+      await mapWithConcurrency(records, 6, async (record) => {
+        try {
+          const info = await getChapterInfo(record.book_id, record.book_index)
+          if (!cancelled && info) {
+            titles[`${record.book_id}:${record.book_index}`] = info.title
+          }
+        } catch {
+          // 忽略单条章节信息拉取失败
+        }
+      })
+      if (!cancelled) setChapterTitleMap(titles)
+    }
+
+    load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [readingRecordMap])
 
   function handleModeChange(value) {
     setMode(value)
@@ -223,6 +352,9 @@ function BookshelfPage() {
 
     try {
       await preprocessBookRaw(preprocessTarget.id)
+
+      // 预处理后刷新书架上的章节状态（0 章节提示）。
+      setStatusVersion((version) => version + 1)
 
       const chapters = await getBookChapters(preprocessTarget.id)
       const list = (Array.isArray(chapters) ? chapters : []).map((chapter) => ({
@@ -261,11 +393,19 @@ function BookshelfPage() {
     setPreprocessError('')
   }
 
-  function handleSaved(updated) {
+  function handleSaved(updated, options = {}) {
     if (!updated) return
-    setBooks((prev) => prev.map((book) => (book.id === updated.id ? updated : book)))
-    // 封面已改为文件存储，保存后刷新封面（重新拉取文件封面）。
-    setCoverVersion((version) => version + 1)
+    setBooks((prev) =>
+      prev.map((book) =>
+        // 后端 update 接口不接收/不返回 cover 字段，用原对象合并响应，保留老 base64 封面数据，
+        // 避免编辑书名/作者后书架封面立刻丢失。
+        book.id === updated.id ? { ...book, ...updated, cover: book.cover } : book,
+      ),
+    )
+    // 只有确实上传了新封面时才刷新该书的封面，避免书名/作者改动也触发闪烁。
+    if (options?.coverChanged) {
+      setCoverRefreshMap((prev) => ({ ...prev, [updated.id]: (prev[updated.id] ?? 0) + 1 }))
+    }
   }
 
   function showNotice(message) {
@@ -408,23 +548,36 @@ function BookshelfPage() {
         <div className="grid grid-cols-1 gap-3">
           {filtered.map((book) => {
             const frontendType = toFrontendType(book.type)
+            const readingRecord = readingRecordMap[String(book.id)]
+            const status = bookStatusMap[String(book.id)]
+            const chapterTitle = readingRecord
+              ? chapterTitleMap[`${book.id}:${readingRecord.book_index}`]
+              : undefined
 
             return (
-              <Card key={book.id}>
-                <CardContent className="flex items-center gap-3 py-4">
-                  <div className="size-14 shrink-0 overflow-hidden rounded-md border bg-muted">
+              <Card key={book.id} className="overflow-hidden">
+                <CardContent className="flex items-start gap-2 py-1.5 px-3">
+                  <div className="relative aspect-[3/4] w-16 shrink-0 overflow-hidden rounded-md border bg-muted sm:w-20">
                     <PicViewer
                       fetcher={() => fetchCover(book)}
                       alt={book.name || '封面'}
                       filePath={book.name || ''}
                       className="size-full"
-                      fit="cover"
-                      fallback={<CoverFallback iconClassName="size-5" />}
+                      fit="contain"
+                      fallback={<CoverFallback iconClassName="size-7" />}
                       loadingFallback={<CoverLoading />}
-                      refreshKey={coverVersion}
+                      refreshKey={coverRefreshMap[book.id] ?? 0}
                     />
+                    <Badge variant="secondary" className="absolute right-1 top-1 px-1 py-0.5">
+                      {TYPE_LABELS[frontendType] ?? frontendType}
+                    </Badge>
+                    {status && status.chapterCount === 0 ? (
+                      <span className="absolute left-1 top-1 flex size-6 items-center justify-center rounded-md bg-background/70 opacity-90">
+                        <ChapterHint status={status} />
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 justify-between">
                     <div className="flex min-w-0 items-center gap-2">
                       {frontendType === 'webnovel' ? (
                         <button
@@ -438,11 +591,20 @@ function BookshelfPage() {
                       ) : (
                         <h3 className="min-w-0 truncate text-base font-semibold">{book.name || '未命名'}</h3>
                       )}
-                      <Badge variant="secondary" className="shrink-0">
-                        {TYPE_LABELS[frontendType] ?? frontendType}
-                      </Badge>
                     </div>
-                    {book.author ? <p className="truncate text-sm text-muted-foreground">{book.author}</p> : null}
+                    <p className="truncate text-sm text-muted-foreground">{book.author || '未知作者'}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      创建于 {formatDateTime(book.created_at)}
+                    </p>
+                    {readingRecord ? (
+                      <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={readingRecord.updated_at || undefined}
+                      >
+                        读到{chapterTitle ? `「${chapterTitle}」` : `第 ${readingRecord.book_index + 1} 章`}
+                        {readingRecord.updated_at ? ` · ${formatRelativeTime(readingRecord.updated_at)}` : ''}
+                      </p>
+                    ) : null}
                   </div>
                   <BookActionsMenu
                     book={book}
@@ -459,48 +621,58 @@ function BookshelfPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          {filtered.map((book) => (
-            <div key={book.id} className="flex flex-col gap-2">
-              <div className="relative aspect-[3/4] overflow-hidden rounded-lg border bg-muted">
-                <PicViewer
-                  fetcher={() => fetchCover(book)}
-                  alt={book.name || '封面'}
-                  filePath={book.name || ''}
-                  className="size-full"
-                  fit="cover"
-                  fallback={<CoverFallback iconClassName="size-8" />}
-                  loadingFallback={<CoverLoading />}
-                  refreshKey={coverVersion}
-                />
-                <BookActionsMenu
-                  book={book}
-                  onRead={handleRead}
-                  onPreprocess={handlePreprocess}
-                  onDownloadRaw={handleDownloadRaw}
-                  onEdit={handleEdit}
-                  downloading={downloadingId === book.id}
-                  triggerClassName="absolute top-2 right-2 size-8 bg-background/70 opacity-90"
-                />
+          {filtered.map((book) => {
+            const status = bookStatusMap[String(book.id)]
+
+            return (
+              <div key={book.id} className="flex flex-col gap-2">
+                <div className="relative aspect-[3/4] overflow-hidden rounded-lg border bg-muted">
+                  <PicViewer
+                    fetcher={() => fetchCover(book)}
+                    alt={book.name || '封面'}
+                    filePath={book.name || ''}
+                    className="size-full"
+                    fit="cover"
+                    fallback={<CoverFallback iconClassName="size-8" />}
+                    loadingFallback={<CoverLoading />}
+                    refreshKey={coverRefreshMap[book.id] ?? 0}
+                  />
+                  <BookActionsMenu
+                    book={book}
+                    onRead={handleRead}
+                    onPreprocess={handlePreprocess}
+                    onDownloadRaw={handleDownloadRaw}
+                    onEdit={handleEdit}
+                    downloading={downloadingId === book.id}
+                    triggerClassName="absolute top-2 right-2 size-8 bg-background/70 opacity-90"
+                  />
+                  {status && status.chapterCount === 0 ? (
+                    <span className="absolute top-2 left-2 flex size-8 items-center justify-center rounded-md bg-background/70 opacity-90">
+                      <ChapterHint status={status} />
+                    </span>
+                  ) : null}
+                </div>
+                <div className="min-w-0 px-0.5">
+                  {toFrontendType(book.type) === 'webnovel' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleRead(book)}
+                      title="阅读"
+                      className="block w-full truncate text-left text-sm font-medium hover:underline"
+                    >
+                      {book.name || '未命名'}
+                    </button>
+                  ) : (
+                    <p className="truncate text-sm font-medium">{book.name || '未命名'}</p>
+                  )}
+                  <p className="truncate text-xs text-muted-foreground">{book.author || '未知作者'}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    创建于 {formatDateTime(book.created_at)}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 px-0.5">
-                {toFrontendType(book.type) === 'webnovel' ? (
-                  <button
-                    type="button"
-                    onClick={() => handleRead(book)}
-                    title="阅读"
-                    className="block w-full truncate text-left text-sm font-medium hover:underline"
-                  >
-                    {book.name || '未命名'}
-                  </button>
-                ) : (
-                  <p className="truncate text-sm font-medium">{book.name || '未命名'}</p>
-                )}
-                {book.author ? (
-                  <p className="truncate text-xs text-muted-foreground">{book.author}</p>
-                ) : null}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -572,7 +744,18 @@ function BookshelfPage() {
                 )}
               </div>
               <DialogFooter>
-                <Button onClick={handleClosePreprocess}>知道了</Button>
+                <Button variant="outline" onClick={handleClosePreprocess}>
+                  知道了
+                </Button>
+                <Button
+                  disabled={preprocessChapters.length === 0}
+                  onClick={() => {
+                    handleClosePreprocess()
+                    handleRead(preprocessTarget)
+                  }}
+                >
+                  立即阅读
+                </Button>
               </DialogFooter>
             </>
           ) : (

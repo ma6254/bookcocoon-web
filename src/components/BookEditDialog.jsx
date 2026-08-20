@@ -221,7 +221,7 @@ export default function BookEditDialog({ book, open, onOpenChange, onSaved }) {
         await uploadBookCover(book.id, coverFile)
       }
 
-      onSaved?.(updated)
+      onSaved?.(updated, { coverChanged: !!coverFile })
       onOpenChange(false)
     } catch (err) {
       setError(err?.message || '保存失败')
