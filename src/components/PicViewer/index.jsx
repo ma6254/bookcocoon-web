@@ -133,6 +133,7 @@ function PicViewer({
   const [imageMousePosition, setImageMousePosition] = useState(null)
   const dragStart = useRef({ x: 0, y: 0, translateX: 0, translateY: 0 })
   const containerRef = useRef(null)
+  const [containerNode, setContainerNode] = useState(null)
   const previewImageRef = useRef(null)
   const naturalSizeRef = useRef({ width: 0, height: 0 })
   const rotationRef = useRef(0)
@@ -442,21 +443,20 @@ function PicViewer({
     }
   }, [handleFitToScreen, previewOpen, scheduleFitToView])
 
-  // 非被动滚轮监听，避免阻止默认滚动失效
+  // 非被动滚轮监听，避免阻止默认滚动失效。
+  // 依赖 containerNode 保证 DOM 元素已挂载后再绑定事件。
   useEffect(() => {
-    if (!previewOpen) return undefined
-
-    const el = containerRef.current
-    if (!el) return undefined
+    if (!previewOpen || !containerNode) return undefined
 
     const onWheel = (e) => {
       e.preventDefault()
-      setScale((s) => clampScale(s - e.deltaY * 0.003))
+      const delta = e.deltaY || e.deltaX || 0
+      setScale((s) => clampScale(s - delta * 0.003))
     }
 
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [previewOpen])
+    containerNode.addEventListener('wheel', onWheel, { passive: false })
+    return () => containerNode.removeEventListener('wheel', onWheel)
+  }, [previewOpen, containerNode])
 
   // 构建图片信息
   const infoItems = useMemo(() => {
@@ -620,7 +620,10 @@ function PicViewer({
 
                 {/* 图片容器 */}
                 <div
-                  ref={containerRef}
+                  ref={(node) => {
+                    containerRef.current = node
+                    setContainerNode(node)
+                  }}
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
