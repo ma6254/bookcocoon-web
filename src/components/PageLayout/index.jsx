@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Maximize2, Minimize2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import ThemeToggle from '@/components/theme-toggle'
 import ScrollToTop from '@/components/ScrollToTop'
@@ -9,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import AppSidebar from '@/components/Sidebar'
 import { ROUTE_CONFIG } from '@/config'
-import { clearLoginInfo, getStoredToken, getStoredUserInfo } from '@/services/auth'
+import { getStoredToken, getStoredUserInfo, logout } from '@/services/auth'
 import { findRouteTitle } from '@/router/routes'
 
 function PageLayout() {
@@ -17,6 +25,7 @@ function PageLayout() {
   const location = useLocation()
   const token = getStoredToken()
   const [wide, setWide] = useState(() => localStorage.getItem('bookcocoon-content-wide') !== 'false')
+  const [logoutOpen, setLogoutOpen] = useState(false)
 
   function toggleWide() {
     setWide((value) => {
@@ -35,7 +44,12 @@ function PageLayout() {
   const title = findRouteTitle(location.pathname)
 
   function handleLogout() {
-    clearLoginInfo()
+    setLogoutOpen(true)
+  }
+
+  function handleConfirmLogout() {
+    setLogoutOpen(false)
+    logout()
     navigate(ROUTE_CONFIG.loginPath, { replace: true })
   }
 
@@ -75,6 +89,23 @@ function PageLayout() {
 
         <ScrollToTop />
       </SidebarInset>
+
+      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认退出登录？</DialogTitle>
+            <DialogDescription>退出后需要重新登录才能继续操作。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLogoutOpen(false)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmLogout}>
+              确认退出
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   )
 }

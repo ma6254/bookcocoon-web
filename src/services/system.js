@@ -1,9 +1,9 @@
-import { getStoredToken } from './auth'
+import { getStoredToken, handleSessionExpired } from './auth'
 
 async function apiFetch(url) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -14,7 +14,7 @@ async function apiFetch(url) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {

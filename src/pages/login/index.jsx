@@ -32,8 +32,18 @@ function Login() {
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [sessionExpiredMessage] = useState(() => {
+    const msg = sessionStorage.getItem('bookcocoon_session_expired')
+    if (msg) sessionStorage.removeItem('bookcocoon_session_expired')
+    return msg || ''
+  })
+  const [redirectAfterLogin] = useState(() => {
+    const path = sessionStorage.getItem('bookcocoon_redirect_after_login')
+    if (path) sessionStorage.removeItem('bookcocoon_redirect_after_login')
+    return path && path.startsWith('/') && !path.startsWith('/login') ? path : ''
+  })
 
-  if (getStoredToken()) {
+  if (getStoredToken() && !redirectAfterLogin) {
     return <Navigate to={ROUTE_CONFIG.homePath} replace />
   }
 
@@ -69,7 +79,7 @@ function Login() {
         clearRememberedAccount()
       }
 
-      navigate(ROUTE_CONFIG.homePath, { replace: true })
+      navigate(redirectAfterLogin || ROUTE_CONFIG.homePath, { replace: true })
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '登录失败，请稍后重试')
     } finally {
@@ -98,6 +108,13 @@ function Login() {
           <CardContent>
             <form onSubmit={handleSubmit}>
               <div className="flex flex-col gap-6">
+                {sessionExpiredMessage ? (
+                  <Alert variant="default">
+                    <AlertCircle className="size-4" />
+                    <AlertTitle>提示</AlertTitle>
+                    <AlertDescription>{sessionExpiredMessage}</AlertDescription>
+                  </Alert>
+                ) : null}
                 {errorMessage ? (
                   <Alert variant="destructive">
                     <AlertCircle className="size-4" />

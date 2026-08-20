@@ -1,9 +1,9 @@
-import { getStoredToken } from './auth'
+import { getStoredToken, handleSessionExpired } from './auth'
 
 async function apiFetch(url, options = {}) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -20,7 +20,7 @@ async function apiFetch(url, options = {}) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -50,7 +50,7 @@ export async function createReadingRecord(bookId) {
 export async function getReadingRecord(bookId) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -67,7 +67,7 @@ export async function getReadingRecord(bookId) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {

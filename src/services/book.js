@@ -1,4 +1,4 @@
-import { getStoredToken } from './auth'
+import { getStoredToken, handleSessionExpired } from './auth'
 
 // 前端类型 → 后端类型常量
 const TO_BACKEND_TYPE = {
@@ -27,7 +27,7 @@ export function toFrontendType(type) {
 async function apiFetch(url, options = {}) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -44,7 +44,7 @@ async function apiFetch(url, options = {}) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -103,7 +103,7 @@ export async function updateBook(bookId, payload) {
 export async function uploadBookCover(bookId, file) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   const formData = new FormData()
@@ -121,7 +121,7 @@ export async function uploadBookCover(bookId, file) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -142,7 +142,7 @@ export async function uploadBookCover(bookId, file) {
 export async function fetchBookCover(bookId) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -159,7 +159,7 @@ export async function fetchBookCover(bookId) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -174,7 +174,7 @@ export async function fetchBookCover(bookId) {
 export async function uploadBookRaw(bookId, file) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   const formData = new FormData()
@@ -192,7 +192,7 @@ export async function uploadBookRaw(bookId, file) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -213,7 +213,7 @@ export async function uploadBookRaw(bookId, file) {
 export async function fetchBookRaw(bookId) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -230,7 +230,7 @@ export async function fetchBookRaw(bookId) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -244,7 +244,7 @@ export async function fetchBookRaw(bookId) {
 export async function checkBookRaw(bookId) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -258,7 +258,7 @@ export async function checkBookRaw(bookId) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (response.status === 404) {
@@ -280,7 +280,7 @@ export function buildRawDownloadName(book) {
 export async function preprocessBookRaw(bookId) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -294,7 +294,7 @@ export async function preprocessBookRaw(bookId) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -320,7 +320,7 @@ export async function getBookChapters(bookId) {
 export async function getChapterContent(bookId, index) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -333,7 +333,7 @@ export async function getChapterContent(bookId, index) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -354,7 +354,7 @@ export async function getChapterContent(bookId, index) {
 export async function getChapterInfo(bookId, index) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -371,7 +371,7 @@ export async function getChapterInfo(bookId, index) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {

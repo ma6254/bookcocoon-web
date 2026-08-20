@@ -1,4 +1,4 @@
-import { getStoredToken } from './auth'
+import { getStoredToken, handleSessionExpired } from './auth'
 
 async function sha256Hex(file) {
   const buffer = await file.arrayBuffer()
@@ -11,7 +11,7 @@ async function sha256Hex(file) {
 async function apiFetch(url, options = {}) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -28,7 +28,7 @@ async function apiFetch(url, options = {}) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {
@@ -75,7 +75,7 @@ export async function getUploadList() {
 export async function readUploadFile(fileId) {
   const token = getStoredToken()
   if (!token) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   let response
@@ -88,7 +88,7 @@ export async function readUploadFile(fileId) {
   }
 
   if (response.status === 401) {
-    throw new Error('登录状态已过期，请重新登录')
+    handleSessionExpired()
   }
 
   if (!response.ok) {

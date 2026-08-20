@@ -20,10 +20,37 @@ export function getStoredUserInfo() {
   }
 }
 
+const SESSION_EXPIRED_KEY = 'bookcocoon_session_expired'
+const REDIRECT_AFTER_LOGIN_KEY = 'bookcocoon_redirect_after_login'
+
 // 登出时清除 token 与用户信息，但保留「记住我」的账号，便于下次登录回填。
 export function clearLoginInfo() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_INFO_KEY)
+}
+
+// 记录当前页面地址，便于登录成功后跳转回来。
+function saveRedirectPathForLogin() {
+  const currentPath = window.location.pathname + window.location.search + window.location.hash
+  if (currentPath && !currentPath.startsWith('/login')) {
+    sessionStorage.setItem(REDIRECT_AFTER_LOGIN_KEY, currentPath)
+  }
+}
+
+// 手动退出登录：保存当前页面、清除登录信息。
+export function logout() {
+  saveRedirectPathForLogin()
+  clearLoginInfo()
+}
+
+// 处理登录状态过期：保存当前页面、清除登录信息、记录提示信息、跳转到登录页。
+export function handleSessionExpired() {
+  saveRedirectPathForLogin()
+  clearLoginInfo()
+
+  sessionStorage.setItem(SESSION_EXPIRED_KEY, '登录状态已过期，请重新登录')
+  window.location.href = '/login'
+  throw new Error('登录状态已过期，请重新登录')
 }
 
 export function getRememberedAccount() {
